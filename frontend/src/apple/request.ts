@@ -3,6 +3,14 @@ import { buildCookieHeader } from "./cookies";
 import { userAgent } from "./config";
 import type { Cookie } from "../types";
 
+export interface CurlRequestOptions {
+  method: string;
+  url: string;
+  headers?: Record<string, string>;
+  body?: string | Uint8Array | ArrayBuffer;
+  userAgent?: string;
+}
+
 export interface AppleRequestOptions {
   host: string;
   path: string;
@@ -18,27 +26,29 @@ export interface AppleResponse {
   headers: Record<string, string>;
   rawHeaders: [string, string][];
   body: string;
+  bodyBytes: Uint8Array;
 }
 
-export async function appleRequest(
-  opts: AppleRequestOptions,
-): Promise<AppleResponse> {
+export interface CurlResponse {
+  status: number;
+  statusText: string;
+  headers: Record<string, string>;
+  rawHeaders: [string, string][];
+  bodyText: string;
+  bodyBytes: Uint8Array;
+}
+
+export async function curlRequest(
+  opts: CurlRequestOptions,
+): Promise<CurlResponse> {
   await initLibcurl();
 
-  const url = `https://${opts.host}${opts.path}`;
   const headers: Record<string, string> = {
-    "User-Agent": userAgent,
-    ...opts.headers,
+    "User-Agent": opts.userAgent || userAgent,
+    ...(opts.headers || {}),
   };
 
-  if (opts.cookies?.length) {
-    const cookieHeader = buildCookieHeader(opts.cookies, url);
-    if (cookieHeader) {
-      headers["Cookie"] = cookieHeader;
-    }
-  }
-
-  const resp = await libcurl.fetch(url, {
+  const resp = await libcurl.fetch(opts.url, {
     method: opts.method,
     headers,
     body: opts.body,
@@ -51,13 +61,49 @@ export async function appleRequest(
     responseHeaders[key.toLowerCase()] = value;
   }
 
-  const body = await resp.text();
+  const bodyBuffer = await resp.arrayBuffer();
+  const bodyBytes = new Uint8Array(bodyBuffer);
+  const bodyText = new TextDecoder().decode(bodyBytes);
 
   return {
     status: resp.status,
     statusText: resp.statusText,
     headers: responseHeaders,
     rawHeaders: resp.raw_headers,
-    body,
+    bodyText,
+    bodyBytes,
+  };
+}
+
+export async function appleRequest(
+  opts: AppleRequestOptions,
+): Promise<AppleResponse> {
+  const url = `https://${opts.host}${opts.path}`;
+  const headers: Record<string, string> = {
+    ...opts.headers,
+  };
+
+  if (opts.cookies?.length) {
+    const cookieHeader = buildCookieHeader(opts.cookies, url);
+    if (cookieHeader) {
+      headers["Cookie"] = cookieHeader;
+    }
+  }
+
+  const resp = await curlRequest({
+    method: opts.method,
+    url,
+    headers,
+    body: opts.body,
+    userAgent,
+  });
+
+  return {
+    status: resp.status,
+    statusText: resp.statusText,
+    headers: resp.headers,
+    rawHeaders: resp.rawHeaders,
+    body: resp.bodyText,
+    bodyBytes: resp.bodyBytes,
   };
 }

@@ -3,17 +3,10 @@ import { appleRequest } from "./request";
 import { buildPlist, parsePlist } from "./plist";
 import { extractAndMergeCookies } from "./cookies";
 import { fetchBag, defaultAuthURL } from "./bag";
+import { gsaAuthenticate } from "./gsa";
+import { AuthenticationError } from "./authErrors";
 import i18n from "../i18n";
-
-export class AuthenticationError extends Error {
-  constructor(
-    message: string,
-    public readonly codeRequired: boolean = false,
-  ) {
-    super(message);
-    this.name = "AuthenticationError";
-  }
-}
+export { AuthenticationError } from "./authErrors";
 
 export async function authenticate(
   email: string,
@@ -97,6 +90,12 @@ export async function authenticate(
         continue;
       }
 
+      if (response.status === 403) {
+        throw new AuthenticationError("Legacy authentication returned HTTP 403.", {
+          kind: "legacy_forbidden",
+        });
+      }
+
       // Handle non-plist responses (e.g. 403 with empty body)
       if (!response.body.trim()) {
         throw new Error(
@@ -150,7 +149,12 @@ export async function authenticate(
 
       return account;
     } catch (e) {
-      if (e instanceof AuthenticationError) throw e;
+      if (e instanceof AuthenticationError) {
+        if (e.kind === "legacy_forbidden") {
+          return gsaAuthenticate(email, password, code || "", deviceId);
+        }
+        throw e;
+      }
       lastError = e instanceof Error ? e : new Error(String(e));
     }
   }

@@ -3,9 +3,14 @@ import { buildPlist } from "../../src/apple/plist";
 import { authenticate } from "../../src/apple/authenticate";
 import { appleRequest } from "../../src/apple/request";
 import { fetchBag } from "../../src/apple/bag";
+import { gsaAuthenticate } from "../../src/apple/gsa";
 
 vi.mock("../../src/apple/request", () => ({
   appleRequest: vi.fn(),
+}));
+
+vi.mock("../../src/apple/gsa", () => ({
+  gsaAuthenticate: vi.fn(),
 }));
 
 vi.mock("../../src/apple/bag", () => ({
@@ -56,5 +61,48 @@ describe("apple/authenticate", () => {
     expect(endpoint.searchParams.get("guid")).toBe("aabbccddeeff");
     expect(endpoint.searchParams.getAll("guid")).toHaveLength(1);
     expect(endpoint.searchParams.get("foo")).toBe("1");
+  });
+
+  it("falls back to GSA auth when legacy endpoint returns 403", async () => {
+    vi.mocked(fetchBag).mockResolvedValue({
+      authURL:
+        "https://buy.itunes.apple.com/WebObjects/MZFinance.woa/wa/authenticate",
+    });
+    vi.mocked(appleRequest).mockResolvedValue({
+      status: 403,
+      statusText: "Forbidden",
+      headers: {},
+      rawHeaders: [],
+      body: "",
+      bodyBytes: new Uint8Array(),
+    });
+    vi.mocked(gsaAuthenticate).mockResolvedValue({
+      email: "test@example.com",
+      password: "password",
+      appleId: "test@example.com",
+      store: "143441",
+      firstName: "GSA",
+      lastName: "User",
+      passwordToken: "token",
+      directoryServicesIdentifier: "123",
+      cookies: [],
+      deviceIdentifier: "aabbccddeeff",
+    });
+
+    const result = await authenticate(
+      "test@example.com",
+      "password",
+      undefined,
+      undefined,
+      "aabbccddeeff",
+    );
+
+    expect(gsaAuthenticate).toHaveBeenCalledWith(
+      "test@example.com",
+      "password",
+      "",
+      "aabbccddeeff",
+    );
+    expect(result.firstName).toBe("GSA");
   });
 });
