@@ -122,7 +122,9 @@ async function loginEmailPassword(
     "User-Agent": gsaUserAgent,
   };
   const clientInfo = getHeader(anisette, "X-Mme-Client-Info");
-  if (clientInfo) headers["X-MMe-Client-Info"] = clientInfo;
+  if (clientInfo) {
+    headers["X-MMe-Client-Info"] = normalizeMMeClientInfo(clientInfo);
+  }
 
   const cpd = buildCpd(anisette);
   const initResponse = await sendPlistRequest(gsaEndpoint, "POST", headers, {
@@ -370,7 +372,7 @@ async function build2FAHeaders(
 
 function buildCpd(headers: Record<string, string>): Record<string, string> {
   return {
-    ...headers,
+    ...omitHeader(headers, "X-Mme-Client-Info"),
     bootstrap: "true",
     icscrec: "true",
     loc: "en_GB",
@@ -575,6 +577,28 @@ function getHeader(
     if (key.toLowerCase() === lower) return value;
   }
   return undefined;
+}
+
+function omitHeader(
+  headers: Record<string, string>,
+  name: string,
+): Record<string, string> {
+  const lower = name.toLowerCase();
+  return Object.fromEntries(
+    Object.entries(headers).filter(([key]) => key.toLowerCase() !== lower),
+  );
+}
+
+function normalizeMMeClientInfo(value: string): string {
+  const replacement =
+    "com.apple.AuthKit/1 (com.apple.dt.Xcode/3594.4.19)";
+  const ranges = [...value.matchAll(/<[^>]*>/g)];
+  if (ranges.length < 3) return value;
+  const third = ranges[2][0];
+  return value.replace(
+    third,
+    `<${replacement}>`,
+  );
 }
 
 function getUint8Array(value: unknown, message: string): Uint8Array {
