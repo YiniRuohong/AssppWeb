@@ -5,7 +5,6 @@ const router = Router();
 const ALLOWED_HOSTS = new Set(["gsa.apple.com"]);
 const MAX_RESPONSE_BYTES = 2 * 1024 * 1024;
 const REQUEST_TIMEOUT_MS = 20_000;
-const insecureAgent = new https.Agent({ rejectUnauthorized: false });
 
 router.post("/apple-proxy", async (req: Request, res: Response) => {
   const { url, method, headers, bodyBase64 } = req.body ?? {};
@@ -51,7 +50,6 @@ router.post("/apple-proxy", async (req: Request, res: Response) => {
       const proxyRequest = https.request(
         target,
         {
-          agent: insecureAgent,
           method,
           headers: requestHeaders,
           timeout: REQUEST_TIMEOUT_MS,
