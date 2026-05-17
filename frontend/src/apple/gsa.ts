@@ -12,8 +12,8 @@ import {
 } from "./crypto";
 import { AuthenticationError } from "./authErrors";
 import { buildPlist, parsePlist } from "./plist";
-import { curlRequest } from "./request";
 import { computePublicEphemeral, processSrpReply } from "./srp";
+import { authHeaders } from "../api/client";
 
 const gsaEndpoint = "https://gsa.apple.com/grandslam/GsService2";
 const validateEndpoint = "https://gsa.apple.com/grandslam/GsService2/validate";
@@ -23,7 +23,6 @@ const authEndpoint = "https://gsa.apple.com/auth";
 const verifyPhoneEndpoint = "https://gsa.apple.com/auth/verify/phone/";
 const verifyPhoneSecurityCodeEndpoint =
   "https://gsa.apple.com/auth/verify/phone/securitycode";
-const anisetteServerURL = "https://ani.sidestore.io";
 const gsaUserAgent = "akd/1.0 CFNetwork/978.0.7 Darwin/18.7.0";
 
 interface GsaSpd {
@@ -380,13 +379,15 @@ async function fetchAnisetteHeaders(): Promise<Record<string, string>> {
     return cachedAnisette.headers;
   }
 
-  const response = await curlRequest({
-    method: "GET",
-    url: anisetteServerURL,
-    headers: {},
-    userAgent: gsaUserAgent,
+  const response = await fetch("/api/anisette", {
+    headers: authHeaders(),
   });
-  const parsed = JSON.parse(response.bodyText) as Record<string, unknown>;
+  if (!response.ok) {
+    throw new AuthenticationError(`anisette proxy failed with HTTP ${response.status}`, {
+      kind: "anisette_unavailable",
+    });
+  }
+  const parsed = (await response.json()) as Record<string, unknown>;
   const headers: Record<string, string> = {};
   for (const [key, value] of Object.entries(parsed)) {
     if (typeof value === "string") headers[key] = value;
@@ -424,14 +425,13 @@ async function sendRawRequest(
   acceptableStatusCodes: number[] = [],
   redirectCount = 0,
   slashRetry = false,
-): Promise<Awaited<ReturnType<typeof curlRequest>>> {
-  const response = await curlRequest({
-    method,
-    url,
-    headers,
-    body,
-    userAgent: headers["User-Agent"],
-  });
+): Promise<{
+  status: number;
+  statusText: string;
+  headers: Record<string, string>;
+  bodyText: string;
+}> {
+  const response = await sendAppleProxyRequest(url, method, headers, body);
 
   if (response.status >= 300 && response.status < 400) {
     if (redirectCount >= 3) {
@@ -497,6 +497,46 @@ async function sendRawRequest(
   }
 
   return response;
+}
+
+async function sendAppleProxyRequest(
+  url: string,
+  method: string,
+  headers: Record<string, string>,
+  body?: Uint8Array,
+): Promise<{
+  status: number;
+  statusText: string;
+  headers: Record<string, string>;
+  bodyText: string;
+}> {
+  const response = await fetch("/api/apple-proxy", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...authHeaders(),
+    },
+    body: JSON.stringify({
+      url,
+      method,
+      headers,
+      bodyBase64: body ? base64Encode(body) : "",
+    }),
+  });
+
+  if (!response.ok) {
+    throw new AuthenticationError(
+      `apple proxy failed with HTTP ${response.status}`,
+      { kind: "gsa_malformed" },
+    );
+  }
+
+  return (await response.json()) as {
+    status: number;
+    statusText: string;
+    headers: Record<string, string>;
+    bodyText: string;
+  };
 }
 
 function checkGsaError(response: Record<string, any>): void {
