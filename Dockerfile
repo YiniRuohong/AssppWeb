@@ -17,12 +17,14 @@ RUN npm run build
 
 # Stage 3: Runtime
 FROM node:20-alpine
-RUN apk add --no-cache zip
+RUN apk add --no-cache ca-certificates zip
 WORKDIR /app
 COPY --from=backend-build /app/backend/dist ./dist
 COPY --from=backend-build /app/backend/node_modules ./node_modules
 COPY --from=backend-build /app/backend/package.json ./
 COPY --from=frontend-build /app/frontend/dist ./public
+COPY resources/apple-root-ca.crt /usr/local/share/ca-certificates/apple-root-ca.crt
+RUN update-ca-certificates
 RUN mkdir -p /data/packages
 EXPOSE 8080
 ARG BUILD_COMMIT=unknown
