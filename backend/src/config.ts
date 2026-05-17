@@ -36,6 +36,7 @@ export const BAG_TIMEOUT_MS = 15_000; // 15 seconds
 export const BAG_MAX_BYTES = 1024 * 1024; // 1 MB
 export const ANISETTE_TIMEOUT_MS = 15_000; // 15 seconds
 export const ANISETTE_MAX_BYTES = 128 * 1024; // 128 KB
+export const ANISETTE_URL = process.env.ANISETTE_URL || "https://ani.sidestore.io/";
 export const MIN_ACCOUNT_HASH_LENGTH = 8;
 
 // Chunked download settings

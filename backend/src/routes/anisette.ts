@@ -1,16 +1,19 @@
 import { Router, Request, Response } from "express";
 import https from "https";
-import { ANISETTE_MAX_BYTES, ANISETTE_TIMEOUT_MS } from "../config.js";
+import {
+  ANISETTE_MAX_BYTES,
+  ANISETTE_TIMEOUT_MS,
+  ANISETTE_URL,
+} from "../config.js";
 
 const router = Router();
-const anisetteURL = "https://ani.sidestore.io/";
 const userAgent = "AssppWeb/1.0";
 
 router.get("/anisette", async (_req: Request, res: Response) => {
   try {
     const body = await new Promise<string>((resolve, reject) => {
       const request = https.get(
-        anisetteURL,
+        ANISETTE_URL,
         {
           headers: {
             Accept: "application/json",
@@ -54,7 +57,7 @@ router.get("/anisette", async (_req: Request, res: Response) => {
     res.json(parsed);
   } catch (err) {
     console.error(
-      "Anisette proxy error:",
+      `Anisette proxy error (${ANISETTE_URL}):`,
       err instanceof Error ? err.message : err,
     );
     res.status(502).json({ error: "Anisette request failed" });
