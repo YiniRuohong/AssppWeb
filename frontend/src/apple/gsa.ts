@@ -224,10 +224,17 @@ async function decodeSpd(
     extraDataKey,
     extraDataIv.slice(0, 16),
   );
-  const spd = getRecord(
-    parsePlist(new TextDecoder().decode(plaintext)),
-    "invalid spd",
-  );
+  const spdText = new TextDecoder().decode(plaintext);
+  let spdParsed: unknown;
+  try {
+    spdParsed = parsePlist(spdText);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "unknown error";
+    throw new AuthenticationError(`Invalid decrypted SPD payload: ${message}`, {
+      kind: "gsa_malformed",
+    });
+  }
+  const spd = getRecord(spdParsed, "invalid spd");
 
   const dsid = String(spd.adsid || "");
   const idmsToken = String(spd.GsIdmsToken || "");
@@ -413,7 +420,16 @@ async function sendPlistRequest(
     headers,
     utf8(buildPlist(body)),
   );
-  const parsed = parsePlist(response.bodyText) as Record<string, any>;
+  let parsed: Record<string, any>;
+  try {
+    parsed = parsePlist(response.bodyText) as Record<string, any>;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "unknown error";
+    throw new AuthenticationError(
+      `Invalid plist response for ${method} ${url}: ${message}`,
+      { kind: "gsa_malformed" },
+    );
+  }
   return getRecord(parsed.Response, "missing Response");
 }
 

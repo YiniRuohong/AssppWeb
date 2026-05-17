@@ -68,5 +68,11 @@ describe("apple/plist", () => {
       expect(parsed.email).toBe("test@test.com");
       expect(parsed.value).toBe("hello world");
     });
+
+    it("should include the unexpected root node in parse errors", () => {
+      expect(() => parsePlist("<html><body>bad</body></html>")).toThrow(
+        "Invalid plist: root element is <html> instead of <plist>",
+      );
+    });
   });
 });
