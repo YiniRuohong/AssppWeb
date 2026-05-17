@@ -30,4 +30,5 @@ EXPOSE 8080
 ARG BUILD_COMMIT=unknown
 ARG BUILD_DATE=unknown
 ENV DATA_DIR=/data PORT=8080 BUILD_COMMIT=$BUILD_COMMIT BUILD_DATE=$BUILD_DATE
+ENV NODE_EXTRA_CA_CERTS=/usr/local/share/ca-certificates/apple-root-ca.crt
 CMD ["node", "dist/index.js"]
